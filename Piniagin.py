@@ -4,7 +4,8 @@ from mido import Message, MidiFile, MidiTrack  # to work with midi file
 from music21.converter import parse  # to parse the midi file
 
 
-def generate_scale(note: str, is_major: bool) -> list:  # generate a scale from a note
+# generate a scale from a note
+def generate_scale(note: str, is_major: bool) -> list:
     notes_list = ["C", "C#", "D", "D#", "E",
                   "F", "F#", "G", "G#", "A", "A#", "B"]
     for i in range(len(notes_list)):
@@ -21,18 +22,24 @@ def generate_scale(note: str, is_major: bool) -> list:  # generate a scale from 
 # generate a chord from a midi number
 def generate_chord(midi: int) -> list:
     chord = []
-    i = numpy.random.randint(0, 9)  # choose a random chord type
+    # choose a random chord type
+    i = numpy.random.randint(0, 9)
     match i:
         case 0:
-            chord = [midi, midi + 4, midi + 7]  # major triad
+            # major triad
+            chord = [midi, midi + 4, midi + 7]
         case 1:
-            chord = [midi, midi + 3, midi + 7]  # minor triad
+            # minor triad
+            chord = [midi, midi + 3, midi + 7]
         case 2:
-            chord = [midi, midi + 3, midi + 6]  # diminished chord
+            # diminished chord
+            chord = [midi, midi + 3, midi + 6]
         case 3:
-            chord = [midi, midi + 2, midi + 7]  # suspended second chord
+            # suspended second chord
+            chord = [midi, midi + 2, midi + 7]
         case 4:
-            chord = [midi, midi + 5, midi + 7]  # suspended fourth chord
+            # suspended fourth chord
+            chord = [midi, midi + 5, midi + 7]
         case 5:
             chord = [-1, -1, -1]  # rest
         case 6:
@@ -51,14 +58,14 @@ def generate_chord(midi: int) -> list:
 
 
 # convert note to midi number
-def convert(note: int) -> int:
+def convert(note: str) -> int:
     notes_list = ["C", "C#", "D", "D#", "E", "F", "F#",
                   "G", "G#", "A", "A#", "B"]
     # let's assume the note C is 0
-    for i in range(len(notes_list)):  # go through the notes in search of the needed note
+    # go through the notes list in search of the needed note
+    for i in range(len(notes_list)):
         if note == notes_list[i]:
-            note_number = i
-            return note_number
+            return i
     return -1
 
 
@@ -69,7 +76,8 @@ def average(song: list) -> list:
     rest_time = 0
     counter = 0
     note = 0
-    for i in range(len(song)):  # go through the song to create a list of notes at each second
+    # go through the song to create a list of notes at each second
+    for i in range(len(song)):
         for _ in range((song[i][1])):
             per_second.append(song[i][0])
     # go through the list of notes in each second to calculate average note of the quarter
@@ -100,44 +108,44 @@ def fitness_score(individual: list, avg: list, chords: list) -> float:
     for i in range(len(avg)):
         chord = individual[i]
         if avg[i] >= 0:
-            if abs(float(avg[i]) - chord[0]) < 10:
-                fitness += (5 - 0.5*abs(float(avg[i]) - chord[0]))
-            if abs(float(avg[i]) - chord[1]) < 10:
-                fitness += (5 - 0.5*abs(float(avg[i]) - chord[1]))
-            if abs(float(avg[i]) - chord[2]) < 10:
-                fitness += (5 - 0.5*abs(float(avg[i]) - chord[2]))
+            if abs(avg[i] - chord[0]) < 10:
+                fitness += (5 - 0.5*abs(avg[i] - chord[0]))
+            if abs(avg[i] - chord[1]) < 10:
+                fitness += (5 - 0.5*abs(avg[i] - chord[1]))
+            if abs(avg[i] - chord[2]) < 10:
+                fitness += (5 - 0.5*abs(avg[i] - chord[2]))
     for i in range(len(individual)):
-        # 2. Existence and validity of chords
+        # 2. Existence  of chords
         chord = individual[i]
-        invalid = True
-        for j in range(len(chords)):  # check if the chord exists
-            if convert(chords[j % 7]) == (chord[0] % 12) and \
-               convert(chords[(j + 2) % 7]) == (chord[1] % 12) and \
-               convert(chords[(j + 4) % 7]) == (chord[2] % 12):
-                fitness += 10
-                invalid = False
-                break
-        if invalid:
+        fitness_before = fitness
+        for j in range(len(chords)):
+            fitness += 10*(convert(chords[j % 7]) == (chord[0] % 12) and
+                           convert(chords[(j + 2) % 7]) == (chord[1] % 12) and
+                           convert(chords[(j + 4) % 7]) == (chord[2] % 12))
+        if fitness == fitness_before:  # the chord doesn't exist
             fitness -= 50
 
         # 3. Check dissonance of chords by checking the difference between the notes of the original and the individual
         if avg[i] > 0:
-            ton_diff = abs(chord[0] % 12 - avg[i])
-            med_diff = abs(chord[1] % 12 - avg[i])
-            dom_diff = abs(chord[2] % 12 - avg[i])
-            for k in [ton_diff, med_diff, dom_diff]:
+            for k in [abs(chord[x] % 12 - avg[i]) for x in range(3)]:
                 match k:
-                    case 0 | 7:  # perfect consonance
+                    case 0 | 7:
+                        # perfect consonance
                         fitness += 10
-                    case 5:  # major consonance
+                    case 5:
+                        # major consonance
                         fitness += 5
-                    case 2 | 10:  # minor consonance
-                        pass  # no change
-                    case 3 | 4 | 8 | 9:  # major dissonance
+                    case 2 | 10:
+                        # minor consonance -> no change in fitness
+                        pass
+                    case 3 | 4 | 8 | 9:
+                        # major dissonance
                         fitness -= 5
-                    case 6:  # minor dissonance
+                    case 6:
+                        # minor dissonance
                         fitness -= 10
-                    case 1 | 11:  # perfect dissonance
+                    case 1 | 11:
+                        # perfect dissonance
                         fitness -= 15
     return fitness
 
@@ -145,17 +153,21 @@ def fitness_score(individual: list, avg: list, chords: list) -> float:
 # evolution algorithms function that performs selection, crossover and mutation
 def evolution(population: list, avg_note: list, chords: list) -> list:
     sorted_populatiom = []
-    for i in range(len(population)):  # selection of best 50% of the population
+    # selection of best 50% of the population
+    for i in range(len(population)):
+        # calculate the fitness of each individual and add it to the list
         sorted_populatiom.append((population[i], fitness_score(
-            population[i], avg_note, chords)))  # calculate the fitness of each individual and add it to the list
+            population[i], avg_note, chords)))
     # sort by fitness score
     sorted_populatiom.sort(key=lambda x: x[1], reverse=True)
-    population = []  # clear the population to add only the best 50% of the population
+    # clear the population to add only the best 50% of the population
+    population = []
     for i in range(int(len(sorted_populatiom) * 0.5)):
         population.append(sorted_populatiom[i][0])
 
-    # here starts crossover of the 50% of the population
+    # here starts crossover of the 50% of the remaining population
     # shuffle the population to get random pairs of parents
+    # each pair of parents will produce 2 children
     numpy.random.shuffle(population)
     for i in range(0, len(population), 2):
         if i + 1 < len(population):
@@ -164,7 +176,8 @@ def evolution(population: list, avg_note: list, chords: list) -> list:
             child1 = []
             child2 = []
             for j in range(len(parent1)):
-                if numpy.random.randint(0, 2) == 0:  # randomly choose a parent
+                # randomly choose a parent
+                if numpy.random.randint(0, 2) == 0:
                     child1.append(parent1[j])
                     child2.append(parent2[j])
                 else:
@@ -186,20 +199,21 @@ def evolution(population: list, avg_note: list, chords: list) -> list:
     return population
 
 
-def create_output(input_name: MidiFile, individual: list, output_file_name: str) -> MidiFile:
+def create_output(input_name: MidiFile, individual: list, output_name: str) -> MidiFile:
     track = MidiTrack()
-    output = MidiFile()  # create a new midifile
+    output = MidiFile()
     track.append(input_name.tracks[1][0])
     rest = 0
     on = 'note_on'
     off = 'note_off'
-    for x in individual:  # append the chords to the track
+    # append the chords to the track
+    for x in individual:
         if x[0] == 0:
             rest += 384
         else:
-            track.extend([Message(on,  note=x[0], time=rest, velocity=45),
-                          Message(on, note=x[1], velocity=45),
-                          Message(on, note=x[2], velocity=45),
+            track.extend([Message(on,  note=x[0], time=rest, velocity=50),
+                          Message(on, note=x[1], velocity=50),
+                          Message(on, note=x[2], velocity=50),
                           Message(off, note=x[0], time=384, velocity=0),
                           Message(off, note=x[1], velocity=0),
                           Message(off, note=x[2], velocity=0)])
@@ -207,56 +221,63 @@ def create_output(input_name: MidiFile, individual: list, output_file_name: str)
             rest = 0
     # append the last message
     track.append(input_name.tracks[1][-1])
-    # append tracks of the input file
-    output.tracks.extend([input_name.tracks[0], input_name.tracks[1]])
-    # append the generated track to the output file
-    output.tracks.append(track)
+    # append tracks of the input file and the new track
+    output.tracks.extend([input_name.tracks[0], input_name.tracks[1], track])
     # set the same ticks per beat as in the original
     output.ticks_per_beat = input_name.ticks_per_beat
-    output.save(output_file_name)  # save the file as a midifile
+    # save the file as a midifile
+    output.save(output_name)
     return output
 
 
 def create_accompaniment(input_name: str, output_name: str, gen_number: int, size: int):
-    start = time.time()  # start the time measurement
+    # start the time measurement
+    start = time.time()
     notes = ["C", "C#", "D", "D#", "E",
                   "F", "F#", "G", "G#", "A", "A#", "B"]
-    input_file = MidiFile(input_name)  # read the input file
-    input_song = parse(input_name)  # parse input using music21 library
+    # read the input file
+    input_file = MidiFile(input_name)
+    # parse input using music21 library
+    input_song = parse(input_name)
     keys = []  # list of notes and their time
-    chords = []  # list of notes that we can compose valid chords from
     population = []  # list of individuals
-    for track in input_file.tracks:  # get the notes and their time
+    # get the notes and their time
+    for track in input_file.tracks:
         for message in track:
             if message.time != 0:
-                if message.type == "note_on":  # if the note is pressed
+                # if the note is pressed
+                if message.type == "note_on":
                     keys.append([0, message.time])
-                elif message.type == "note_off":  # if the note is released
+                    # if the note is released
+                elif message.type == "note_off":
                     keys.append([message.note, message.time])
-    # get the average note of the input song
+    # get the average note of each quarter of the input song
     avg_note = average(keys)
-    input_key = input_song.analyze('key')  # get the key of the input song
-    print("Input key: " + str(input_key).capitalize())
+    # get the key of the input song
+    input_key = input_song.analyze('key')
+    print("Key: " + str(input_key).capitalize())
     scale = [[x, generate_scale(x, input_key.type == 'major')]for x in notes]
     for message in scale:
         if message[0] == str(input_key).capitalize().split()[0]:
+            # list of notes that we can compose valid chords from
             chords = message[1]
             break
-    for _ in range(size):  # create the initial population
-        individ = []
+        # create the initial population
+    for _ in range(size):
+        individual = []
         for _ in range(len(avg_note)):
             # generate a random chord and append it to the individual
-            individ.append(generate_chord(numpy.random.randint(0, 100)))
+            individual.append(generate_chord(numpy.random.randint(0, 100)))
         # append the individual to the population
-        population.append(individ)
+        population.append(individual)
     # run the genetic algorithms for the specified number of generations
     for i in range(gen_number):
         population = evolution(population, avg_note, chords)
         if i % 20 == 0 or i == gen_number - 1:
             minimum = 100000000.0
             maximum = 0.0
-            for individ in population:
-                fit = fitness_score(individ, avg_note, chords)
+            for individual in population:
+                fit = fitness_score(individual, avg_note, chords)
                 maximum = max(maximum, fit)
                 minimum = min(minimum, fit)
             if i == gen_number-1:
@@ -264,7 +285,8 @@ def create_accompaniment(input_name: str, output_name: str, gen_number: int, siz
                       maximum, "Minimum", minimum)
             else:
                 print("Generation", i, "Maximum", maximum, "Minimum", minimum)
-    maximum = 0.0  # fitness score of the best individual
+      # fitness score of the best individual
+    maximum = 0.0
     for melody in population:
         fit = fitness_score(melody, avg_note, chords)
         if fit > maximum:
@@ -272,7 +294,7 @@ def create_accompaniment(input_name: str, output_name: str, gen_number: int, siz
             best = melody
     create_output(input_file, best, output_name)
     print("\nDone, please check", output_name, "for the result.")
-    print("Time taken:", round(time.time() - start, 2), "seconds")
+    print("Time taken:", round(time.time() - start, 2), "seconds.")
     return None
 
 
