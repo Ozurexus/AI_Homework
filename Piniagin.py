@@ -29,7 +29,6 @@ def mean(song: list) -> list:
             if rest_time == 384:
                 per_quarter.append(0)
             else:
-                # substract 12 to get the accompaniment slightly lower than the original
                 per_quarter.append((note/(384-rest_time))-12)
             rest_time = 0
             counter = 0
@@ -39,66 +38,85 @@ def mean(song: list) -> list:
     return per_quarter
 
 
-# Calculate the fitness of an individual
-# Fitness depends on three criteria
-def fitness_score(individual: list, avg: list, chords: list) -> float:
-    fitness = 0.0
+# generate a scale from a note
+def generate_scale(note: str, is_major: bool) -> list:
+    notes_list = ["C", "C#", "D", "D#", "E",
+                  "F", "F#", "G", "G#", "A", "A#", "B"]
+    i = notes_list.index(note)
+    if is_major:
+        # major scale
+        tmp = [i, i + 2, i + 4, i + 5, i + 7, i + 9, i + 11]
+    else:
+        # minor scale
+        tmp = [i, i + 2, i + 3, i + 5, i + 7, i + 8, i + 10]
+    scale = [notes_list[x % 12] for x in tmp]
+    return scale
+
+
+# calculate the fitness of an individual
+def fitness_score(candidate: list, mean_notes: list, good_notes: list) -> float:
     notes_list = ["C", "C#", "D", "D#", "E", "F", "F#",
                   "G", "G#", "A", "A#", "B"]
-    for i in range(len(individual)):
-        # 1. Presence of the chords in the possible chords
-        chord = individual[i]
+    fitness = 0.0
+    for i in range(len(candidate)):
+        # 1. Presence of the chords among the good sounding notes
+        chord = candidate[i]
         fitness_before = fitness
-        for j in range(len(chords)):
-            fitness += 10*(notes_list.index(str(chords[j % 7])) == (chord[0] % 12) and
-                           notes_list.index(str(chords[(j + 2) % 7])) == (chord[1] % 12) and
-                           notes_list.index(str(chords[(j + 4) % 7])) == (chord[2] % 12))
+        for j in range(len(good_notes)):
+            fitness += 10*(notes_list.index(str(good_notes[j % 7])) == (chord[0] % 12) and
+                           notes_list.index(str(good_notes[(j + 2) % 7])) == (chord[1] % 12) and
+                           notes_list.index(str(good_notes[(j + 4) % 7])) == (chord[2] % 12))
         if fitness == fitness_before:  # the chord doesn't exist
             fitness -= 50
 
         # 2. Check dissonance of chords by checking the difference
-        #  between the notes of the mean of the original and the individual
-        if avg[i] > 0:
-            for k in [abs(chord[x] % 12 - avg[i]) for x in range(3)]:
-                match k:
-                    case 0 | 7:
-                        # perfect consonance
-                        fitness += 10
-                    case 5:
-                        # major consonance
-                        fitness += 5
-                    case 2 | 10:
-                        # minor consonance -> no change in fitness
-                        pass
-                    case 3 | 4 | 8 | 9:
-                        # major dissonance
-                        fitness -= 5
-                    case 6:
-                        # minor dissonance
-                        fitness -= 10
-                    case 1 | 11:
-                        # perfect dissonance
-                        fitness -= 15
+        #  between the notes of the mean and the individual
+        for k in [abs(chord[x] % 12 - mean_notes[i]) for x in range(3)]:
+            match k:
+                case 0 | 7:
+                    # perfect consonance
+                    fitness += 10
+                case 5:
+                    # major consonance
+                    fitness += 5
+                case 2 | 10:
+                    # minor consonance -> no change in fitness
+                    pass
+                case 3 | 4 | 8 | 9:
+                    # major dissonance
+                    fitness -= 5
+                case 6:
+                    # minor dissonance
+                    fitness -= 10
+                case 1 | 11:
+                    # perfect dissonance
+                    fitness -= 15
 
     # 3. Likeness to the original song's mean notes of each quarter
-    for i in range(1, len(avg)):
-        chord = individual[i]
-        if avg[i] > 0:
+    for i in range(1, len(mean_notes)):
+        chord = candidate[i]
+        if mean_notes[i] > 0:
             flag = False
-            if abs(chord[0]-avg[i]) < 3:
-                fitness += 5*(3 - abs(chord[0]-avg[i]))
+            if chord[0] == mean_notes[0]:
+                fitness -= 10
+            elif abs(chord[0]-mean_notes[i]) < 3:
+                fitness += 3*(3 - abs(chord[0]-mean_notes[i]))
                 flag = True
-            if abs(chord[1]-avg[i]) < 3:
-                fitness += 5*(3 - abs(chord[1]-avg[i]))
+            if chord[1] == mean_notes[0]:
+                fitness -= 10
+            elif abs(chord[1]-mean_notes[i]) < 3:
+                fitness += 3*(3 - abs(chord[1]-mean_notes[i]))
                 flag = True
-            if abs(chord[2]-avg[i]) < 3:
-                fitness += 5*(3 - abs(chord[2]-avg[i]))
+            if chord[2] == mean_notes[0]:
+                fitness -= 10
+            elif abs(chord[2]-mean_notes[i]) < 3:
+                fitness += 3*(3 - abs(chord[2]-mean_notes[i]))
                 flag = True
             if flag == False:
                 fitness -= 30
         else:
             # if there is nothing playing in the song at this quarter
-            # the accomapniment should be silent as well
+            # the accompaniment should be silent as well
             if chord[0] == -1 and chord[1] == -1 and chord[2] == -1:
                 fitness += 10
             else:
@@ -110,12 +128,12 @@ def fitness_score(individual: list, avg: list, chords: list) -> float:
 def random_chord() -> list:
     # rest is chosen so often, because I wanted to improve fitness for
     # songs, where there is a lot of silence (input3 for example)
-    j=randint(0, 100)
-    if j < 10:  # TODO 50% chance of rest
+    i = randint(0, 100)
+    if i < 10:
         return [-1, -1, -1]  # rest
     # choose a random chord type
-    i = randint(0, 9)
-    match i:
+    j = randint(0, 9)
+    match j:
         case 0:
             # major triad
             triad = [i, i + 4, i + 7]
@@ -147,13 +165,13 @@ def random_chord() -> list:
 
 
 # evolution algorithms function that performs selection, crossover and mutation
-def evolution(population: list, avg_note: list, chords: list) -> list:
+def evolution(population: list, mean_notes: list, chords: list) -> list:
     sorted_populatiom = []
     # selection of best 50% of the population
     for i in range(len(population)):
         # calculate the fitness of each individual and add it to the list
         sorted_populatiom.append((population[i], fitness_score(
-            population[i], avg_note, chords)))
+            population[i], mean_notes, chords)))
     # sort by fitness score
     sorted_populatiom.sort(key=lambda x: x[1], reverse=True)
     # clear the population to add only the best 50% of the population
@@ -183,35 +201,41 @@ def evolution(population: list, avg_note: list, chords: list) -> list:
             # here starts mutation of the children
             if len(child1) == len(child2):
                 for j in range(len(child1)):
-                    if randint(0, 10) == 0:
+                    if randint(0, 10) == 1:
                         # generate a random chords for children in 10% of the cases
                         child1[j] = random_chord()
-                    if randint(0, 10) == 0:
+                    if randint(0, 10) == 1:
                         child2[j] = random_chord()
             # add children to the population after mutation
             population.extend([child1, child2])
     return population
 
 
-def create_output(input_name: MidiFile, individual: list, output_name: str) -> MidiFile:
+# construct output midi file
+def create_output(input_name: MidiFile, best: list, output_name: str) -> MidiFile:
     track = MidiTrack()
     output = MidiFile()
     track.append(input_name.tracks[1][0])
     rest = 0
-    on = 'note_on'
-    off = 'note_off'
     # append the chords to the track
-    for x in individual:
+    for x in best:
         if x[0] == -1 and x[1] == -1 and x[2] == -1:
             rest += 384
-        else:  # increase the octave of the notes by 12 TODO
-            track.extend([Message(on,  note=x[0], time=rest, velocity=60),
-                          Message(on, note=x[1], velocity=60),
-                          Message(on, note=x[2], velocity=60),
-                          Message(off, note=x[0], time=384, velocity=0),
-                          Message(off, note=x[1], velocity=0),
-                          Message(off, note=x[2], velocity=0)])
-            # reset the rest time
+        else:
+            for i in range(6):
+                if i < 3:
+                    if i == 0:
+                        t = rest
+                    else:
+                        t = 0
+                    v = 55
+                    mode = 'note_on'
+                else:
+                    if i == 5:
+                        t = 384
+                    v = 0
+                    mode = 'note_off'
+                track.append(Message(mode, note=x[i % 3], velocity=v, time=t))
             rest = 0
     # append the last message
     track.append(input_name.tracks[1][-1])
@@ -226,22 +250,7 @@ def create_output(input_name: MidiFile, individual: list, output_name: str) -> M
     return output
 
 
-# generate a scale from a note
-def generate_scale(note: str, is_major: bool) -> list:
-    notes_list = ["C", "C#", "D", "D#", "E",
-                  "F", "F#", "G", "G#", "A", "A#", "B"]
-    # find the index of the note in the list
-    i = notes_list.index(note)
-    if is_major:
-        # major scale
-        tmp = [i, i + 2, i + 4, i + 5, i + 7, i + 9, i + 11]
-    else:
-        # minor scale
-        tmp = [i, i + 2, i + 3, i + 5, i + 7, i + 8, i + 10]
-    scale = [notes_list[x % 12] for x in tmp]
-    return scale
-
-
+# create accompaniment for the input midi file
 def create_accompaniment(input_name: str, output_name: str, gen_number: int, size: int):
     # start the time measurement
     start = time()
@@ -250,47 +259,45 @@ def create_accompaniment(input_name: str, output_name: str, gen_number: int, siz
     # parse input using music21 library
     input_song = parse(input_name)
     # read the input file
-    input_file = MidiFile(input_name)
+    input_name = MidiFile(input_name)
     keys = []  # list of notes and their time
     population = []  # list of individuals
     # get the notes and their time
-    # print(input_file.tracks[1][1].note)
-    # exit()
-    for i in range(len(input_file.tracks)):
-        for j in range(len(input_file.tracks[i])):
-            if input_file.tracks[i][j].time != 0:
-                if input_file.tracks[i][j].type == 'note_on':
-                    keys.append([0, input_file.tracks[i][j].time])
+    for i in range(len(input_name.tracks)):
+        for j in range(len(input_name.tracks[i])):
+            if input_name.tracks[i][j].time != 0:
+                if input_name.tracks[i][j].type == 'note_on':
+                    keys.append([0, input_name.tracks[i][j].time])
                 else:
-                    keys.append([input_file.tracks[i][j].note,
-                                input_file.tracks[i][j].time])
+                    keys.append([input_name.tracks[i][j].note,
+                                input_name.tracks[i][j].time])
     # get the key of the input song
     input_key = input_song.analyze('key')
     # get the mean note of each quarter of the input song
-    avg_note = mean(keys)
+    mean_note = mean(keys)
     string_input_key = str(input_key).capitalize()
     print("Key: " + string_input_key)
     scale = [[x, generate_scale(x, input_key.type == 'major')]for x in notes]
     for message in scale:
         if message[0] == string_input_key.split()[0]:
-            # list of notes that we can compose valid chords from
+            # list of notes that we can compose good sounding chords from
             chords = message[1]
             break
         # create the initial population
     for _ in range(size):
-        individual = []
-        for _ in range(len(avg_note)):
+        j = []
+        for _ in range(len(mean_note)):
             # generate a random chord and append it to the individual
-            individual.append(random_chord())
+            j.append(random_chord())
         # append the individual to the population
-        population.append(individual)
+        population.append(j)
     # run the genetic algorithms for the specified number of generations
     for i in range(gen_number):
-        population = evolution(population, avg_note, chords)
+        population = evolution(population, mean_note, chords)
         if i % 20 == 0 or i == gen_number - 1:
-            maximum = 0.0
-            for individual in population:
-                fit = fitness_score(individual, avg_note, chords)
+            maximum = -10000000000
+            for j in population:
+                fit = fitness_score(j, mean_note, chords)
                 if fit > maximum:
                     maximum = fit
             if i == gen_number-1:
@@ -299,44 +306,49 @@ def create_accompaniment(input_name: str, output_name: str, gen_number: int, siz
             else:
                 print("Generation", i, "Maximum", maximum)
       # fitness score of the best individual
-    maximum = 0.0
+    maximum = -10000000000
     for melody in population:
-        fit = fitness_score(melody, avg_note, chords)
+        fit = fitness_score(melody, mean_note, chords)
         if fit > maximum:
             maximum = fit
             best = melody
-    create_output(input_file, best, output_name)
-    print("\nDone, please check", output_name, "for the result.")
+    if maximum > -1000:
+        create_output(input_name, best, output_name)
+        print("\nDone, please check", output_name, "for the result.")
+    else:
+        print("\nNo good result was found.")
     print("Time taken:", round(time() - start, 2), "seconds.")
     return None
 
 
 # get the root key of the song to create a name for the output file
-def root_key(input_name: str) -> str:
+def output_name(input_name: str, i: int) -> str:
     input_song = parse(input_name)
     input_key = input_song.analyze('key')
     if input_key.type == 'minor':
         key = str(input_key).capitalize().split()[0] + 'm'
     else:
         key = str(input_key).capitalize().split()[0]
-    return key
+    return str("PiniaginMaximOutput" + str(i)+"-"+key+".mid")
 
 
 def main():
-    # print("Do you want to input manually or use the default ones? Type 1 for default, 2 for manual.")
-    # print("1. Default: 300 generations, 1000 individuals and 3 tracks: Input1.mid, Input2.mid and Input3.mid.")
-    # print("2. Manual")
-    choice = "1"  # TODO input()
+    print("Do you want to manually input the parameters or use the default ones?")
+    print("Type 1 for default, 2 for manual.")
+    print("1. Default: 500 generations, 1000 individuals forInput1.mid, Input2.mid")
+    print(" 1000 generations for Input3.mid.")
+    print("2. Manual")
+    choice = str(input())
     if choice == "1":
         i = 1
-        create_accompaniment("Input1.mid", "PiniaginMaximOutput" +
-                             str(i)+"-"+root_key("Input1.mid")+".mid", 300, 1000)
-        # i += 1
-        # create_accompaniment("Input2.mid", "PiniaginMaximOutput" +
-        #                      str(i)+"-"+root_key("Input2.mid")+".mid", 30, 1000)
-        # i += 1
-        # create_accompaniment("Input3.mid", "PiniaginMaximOutput" +
-        #                      str(i)+"-"+root_key("Input3.mid")+".mid", 30, 1000)
+        create_accompaniment("Input1.mid", output_name(
+            "Input1.mid", i), 300, 1000)
+        i += 1
+        # create_accompaniment("Input2.mid", output_name(
+        #     "Input2.mid", i), 1000, 1000)
+        i += 1
+        # create_accompaniment("Input3.mid", output_name(
+        #     "Input3.mid", i), 1000, 1000)
     elif choice == "2":
         print("Enter the number of tracks:")
         tracks = int(input())
@@ -344,17 +356,17 @@ def main():
         number = int(input())
         print("Enter the size of the population:")
         size = int(input())
-        for c in range(tracks):
-            print("Enter the name of the ", c+1, " input file:")
+        for j in range(tracks):
+            print("Enter the name of the ", j+1, " input file:")
             input_file = input()
-            print("Enter the name of the ", c+1, " output file:")
+            print("Enter the name of the ", j+1, " output file:")
             output_file = input()
         for _ in range(tracks):
             print(create_accompaniment(input_file, output_file, number, size))
-        exit()
+        return
     else:
         print("Error! Invalid input, please try again.")
-        exit()
+        return
 
 
 main()
