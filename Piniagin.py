@@ -29,41 +29,35 @@ def mean(song: list) -> list:
             if rest_time == 384:
                 per_quarter.append(0)
             else:
+                # substract 12 to get the accompaniment slightly lower than the original
                 per_quarter.append((note/(384-rest_time))-12)
             rest_time = 0
             counter = 0
             note = 0
+    if per_quarter[0] != 0:
+        per_quarter[0] -= 12
     return per_quarter
-
-
-# convert note to midi number
-def convert(note: str) -> int:
-    notes_list = ["C", "C#", "D", "D#", "E", "F", "F#",
-                  "G", "G#", "A", "A#", "B"]
-    # let's assume the note C is 0
-    # go through the notes list in search of the needed note
-    for i in range(len(notes_list)):
-        if note == notes_list[i]:
-            return i
-    return -1
 
 
 # Calculate the fitness of an individual
 # Fitness depends on three criteria
 def fitness_score(individual: list, avg: list, chords: list) -> float:
     fitness = 0.0
+    notes_list = ["C", "C#", "D", "D#", "E", "F", "F#",
+                  "G", "G#", "A", "A#", "B"]
     for i in range(len(individual)):
         # 1. Presence of the chords in the possible chords
         chord = individual[i]
         fitness_before = fitness
         for j in range(len(chords)):
-            fitness += 10*(convert(chords[j % 7]) == (chord[0] % 12) and
-                           convert(chords[(j + 2) % 7]) == (chord[1] % 12) and
-                           convert(chords[(j + 4) % 7]) == (chord[2] % 12))
+            fitness += 10*(notes_list.index(str(chords[j % 7])) == (chord[0] % 12) and
+                           notes_list.index(str(chords[(j + 2) % 7])) == (chord[1] % 12) and
+                           notes_list.index(str(chords[(j + 4) % 7])) == (chord[2] % 12))
         if fitness == fitness_before:  # the chord doesn't exist
             fitness -= 50
 
-        # 2. Check dissonance of chords by checking the difference between the notes of the original and the individual
+        # 2. Check dissonance of chords by checking the difference
+        #  between the notes of the mean of the original and the individual
         if avg[i] > 0:
             for k in [abs(chord[x] % 12 - avg[i]) for x in range(3)]:
                 match k:
@@ -116,41 +110,40 @@ def fitness_score(individual: list, avg: list, chords: list) -> float:
 def random_chord() -> list:
     # rest is chosen so often, because I wanted to improve fitness for
     # songs, where there is a lot of silence (input3 for example)
-    i = randint(0, 100)
-    if i < 10:  # TODO 50% chance of rest
+    j=randint(0, 100)
+    if j < 10:  # TODO 50% chance of rest
         return [-1, -1, -1]  # rest
-    else:
-        # choose a random chord type
-        j = randint(0, 9)
-        match j:
-            case 0:
-                # major triad
-                triad = [i, i + 4, i + 7]
-            case 1:
-                # minor triad
-                triad = [i, i + 3, i + 7]
-            case 2:
-                # diminished chord
-                triad = [i, i + 3, i + 6]
-            case 3:
-                # suspended second chord
-                triad = [i, i + 2, i + 7]
-            case 4:
-                # suspended fourth chord
-                triad = [i, i + 5, i + 7]
-            case 5:
-                # first inversion major triad
-                triad = [i + 12, i + 4, i + 7]
-            case 6:
-                # first inversion minor triad
-                triad = [i + 12, i + 3, i + 7]
-            case 7:
-                # second inversion major triad
-                triad = [i + 12, i + 16, i + 7]
-            case 8:
-                # second inversion minor triad
-                triad = [i + 12, i + 15, i + 7]
-        return triad
+    # choose a random chord type
+    i = randint(0, 9)
+    match i:
+        case 0:
+            # major triad
+            triad = [i, i + 4, i + 7]
+        case 1:
+            # minor triad
+            triad = [i, i + 3, i + 7]
+        case 2:
+            # diminished chord
+            triad = [i, i + 3, i + 6]
+        case 3:
+            # suspended second chord
+            triad = [i, i + 2, i + 7]
+        case 4:
+            # suspended fourth chord
+            triad = [i, i + 5, i + 7]
+        case 5:
+            # first inversion major triad
+            triad = [i + 12, i + 4, i + 7]
+        case 6:
+            # first inversion minor triad
+            triad = [i + 12, i + 3, i + 7]
+        case 7:
+            # second inversion major triad
+            triad = [i + 12, i + 16, i + 7]
+        case 8:
+            # second inversion minor triad
+            triad = [i + 12, i + 15, i + 7]
+    return triad
 
 
 # evolution algorithms function that performs selection, crossover and mutation
@@ -237,14 +230,15 @@ def create_output(input_name: MidiFile, individual: list, output_name: str) -> M
 def generate_scale(note: str, is_major: bool) -> list:
     notes_list = ["C", "C#", "D", "D#", "E",
                   "F", "F#", "G", "G#", "A", "A#", "B"]
-    for i in range(len(notes_list)):
-        if note == notes_list[i]:
-            if is_major:
-                number = [i, i + 2, i + 4, i + 5, i + 7, i + 9, i + 11]
-            else:
-                number = [i, i + 2, i + 3, i + 5, i + 7, i + 8, i + 10]
-            scale = [notes_list[j % 12] for j in number]
-            break
+    # find the index of the note in the list
+    i = notes_list.index(note)
+    if is_major:
+        # major scale
+        tmp = [i, i + 2, i + 4, i + 5, i + 7, i + 9, i + 11]
+    else:
+        # minor scale
+        tmp = [i, i + 2, i + 3, i + 5, i + 7, i + 8, i + 10]
+    scale = [notes_list[x % 12] for x in tmp]
     return scale
 
 
@@ -274,7 +268,7 @@ def create_accompaniment(input_name: str, output_name: str, gen_number: int, siz
     input_key = input_song.analyze('key')
     # get the mean note of each quarter of the input song
     avg_note = mean(keys)
-    string_input_key = str(input_key).capitalize
+    string_input_key = str(input_key).capitalize()
     print("Key: " + string_input_key)
     scale = [[x, generate_scale(x, input_key.type == 'major')]for x in notes]
     for message in scale:
@@ -328,35 +322,39 @@ def root_key(input_name: str) -> str:
     return key
 
 
-# print("Do you want to manually input the parameters or use the default ones? Type 1 for default, 2 for manual.")
-# print("1. Default: 300 generations, 1000 individuals and 3 tracks: Input1.mid, Input2.mid and Input3.mid.")
-# print("2. Manual")
-choice = "1"  # TODO input()
-if choice == "1":
-    i = 1
-    create_accompaniment("Input1.mid", "PiniaginMaximOutput" +
-                         str(i)+"-"+root_key("Input1.mid")+".mid", 300, 1000)
-    # i += 1
-    # create_accompaniment("Input2.mid", "PiniaginMaximOutput" +
-    #                      str(i)+"-"+root_key("Input2.mid")+".mid", 30, 1000)
-    # i += 1
-    # create_accompaniment("Input3.mid", "PiniaginMaximOutput" +
-    #                      str(i)+"-"+root_key("Input3.mid")+".mid", 30, 1000)
-elif choice == "2":
-    print("Enter the number of tracks:")
-    tracks = int(input())
-    print("Enter the number of generations:")
-    number = int(input())
-    print("Enter the size of the population:")
-    size = int(input())
-    for j in range(tracks):
-        print("Enter the name of the ", j+1, " input file:")
-        input_file = input()
-        print("Enter the name of the ", j+1, " output file:")
-        output_file = input()
-    for _ in range(tracks):
-        print(create_accompaniment(input_file, output_file, number, size))
-    exit()
-else:
-    print("Error! Invalid input, please try again.")
-    exit()
+def main():
+    # print("Do you want to input manually or use the default ones? Type 1 for default, 2 for manual.")
+    # print("1. Default: 300 generations, 1000 individuals and 3 tracks: Input1.mid, Input2.mid and Input3.mid.")
+    # print("2. Manual")
+    choice = "1"  # TODO input()
+    if choice == "1":
+        i = 1
+        create_accompaniment("Input1.mid", "PiniaginMaximOutput" +
+                             str(i)+"-"+root_key("Input1.mid")+".mid", 300, 1000)
+        # i += 1
+        # create_accompaniment("Input2.mid", "PiniaginMaximOutput" +
+        #                      str(i)+"-"+root_key("Input2.mid")+".mid", 30, 1000)
+        # i += 1
+        # create_accompaniment("Input3.mid", "PiniaginMaximOutput" +
+        #                      str(i)+"-"+root_key("Input3.mid")+".mid", 30, 1000)
+    elif choice == "2":
+        print("Enter the number of tracks:")
+        tracks = int(input())
+        print("Enter the number of generations:")
+        number = int(input())
+        print("Enter the size of the population:")
+        size = int(input())
+        for c in range(tracks):
+            print("Enter the name of the ", c+1, " input file:")
+            input_file = input()
+            print("Enter the name of the ", c+1, " output file:")
+            output_file = input()
+        for _ in range(tracks):
+            print(create_accompaniment(input_file, output_file, number, size))
+        exit()
+    else:
+        print("Error! Invalid input, please try again.")
+        exit()
+
+
+main()
