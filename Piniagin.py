@@ -336,7 +336,7 @@ def output_name(input_name: str, i: int) -> str:
 def main():
     print("Do you want to manually input the parameters or use the default ones?")
     print("Type 1 for default, 2 for manual.")
-    print("1. Default: 500 generations, 1000 individuals forInput1.mid, Input2.mid")
+    print("1. Default: 500 generations, 1000 individuals for Input1.mid, Input2.mid")
     print("and 1000 generations for Input3.mid.")
     print("2. Manual")
     choice = str(input())
@@ -344,12 +344,12 @@ def main():
         i = 1
         create_accompaniment("Input1.mid", output_name(
             "Input1.mid", i), 500, 1000)
-        i += 1
-        create_accompaniment("Input2.mid", output_name(
-            "Input2.mid", i), 500, 1000)
-        i += 1
-        create_accompaniment("Input3.mid", output_name(
-            "Input3.mid", i), 1000, 1000)
+        # i += 1
+        # create_accompaniment("Input2.mid", output_name(
+        #     "Input2.mid", i), 500, 1000)
+        # i += 1
+        # create_accompaniment("Input3.mid", output_name(
+        #     "Input3.mid", i), 1000, 1000)
     elif choice == "2":
         print("Enter the number of tracks:")
         tracks = int(input())
